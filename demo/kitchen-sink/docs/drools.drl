@@ -1,0 +1,52 @@
+import com.linkedin.ucv.LoginCookieRenewalScoreRequest
+import com.linkedin.ucv.content.prototype.MemberScoreResult
+import com.linkedin.ucv.impl.DetailLogger
+import com.linkedin.ucv.impl.MemberAction
+import com.linkedin.ucv.impl.RollupCounterReader
+import com.linkedin.ucv.impl.RollupCounterType
+import com.linkedin.security.abacus.RollupCounter.Period
+import com.linkedin.ucv.impl.DetailLogger
+import com.linkedin.security.util.RequestDescriptor
+import com.linkedin.ucv.impl.AuthorProfileInfoReader
+
+rule "Too many renewal requests per member + session"
+when
+  action: MemberAction()
+  request: LoginCookieRenewalScoreRequest()
+  counterReader: RollupCounterReader()
+  eval(counterReader.getCount(RollupCounterType.LOGIN_COOKIE_RENEWAL_MEMBER_SESSION, 
+     action.getMemberId() + "-" + request.getSessionId(), Period.PERIOD_FIVE_MINUTE, 12) >= 20000)
+  result: MemberScoreResult()
+then
+  result.setLogoutRequired(false);
+end
+
+
+rule "test rule for login cookie renewal"
+when
+        action: MemberAction(memberId == 12345 || memberId == 1436864)
+        result  : MemberScoreResult()
+then
+      result.setLogoutRequired(true);
+end
+
+rule "Log duplicate cookies"
+when
+     MemberAction(headers["cookie"] matches ".*li_at=.*leo_auth_token=.*LIM.*")
+     AuthorProfileInfoReader(linkedinEmployee == true)
+     logger: DetailLogger()
+then
+    // logger.doDetailedLogging(); test note 56
+end
+
+rule "test rule for global rollup counters"
+when
+        action: MemberAction(memberId == 12322)
+        counterReader: RollupCounterReader()
+        logger: DetailLogger()
+then
+      logger.log("the count is " +
+          counterReader.getCount(RollupCounterType.LOGIN_COOKIE_RENEWAL_MEMBER,
+          String.valueOf(action.getMemberId()),Period.PERIOD_HOUR, 1));
+end
+
